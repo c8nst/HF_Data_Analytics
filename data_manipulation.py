@@ -53,9 +53,8 @@ for col in cols:
 
 df_main = df_main.drop(columns=[f'{col}_PAIRS' for col in cols])
 
-
-print(df_main.head())
-
 with pd.ExcelWriter('Processed_HF_Project.xlsx') as writer:
     df_main.to_excel(writer, sheet_name='Main_Data', index=False)
+    df_main[df_main['REHOSPITAL'] == True].to_excel(writer, sheet_name='Rehospital_True', index=False)
+    df_main[df_main['REHOSPITAL'] == False].to_excel(writer, sheet_name='Rehospital_False', index=False)
     diag_lookup.to_excel(writer, sheet_name='Diagnosis_Lookup', index=False)
