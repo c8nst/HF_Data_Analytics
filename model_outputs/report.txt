@@ -1,0 +1,90 @@
+Stepwise (backward) logistic regression — REHOSPITAL
+======================================================================
+n = 5,238   events = 1,269 (24.23%)
+
+Predictors entered: SBP_PER10_DECREASE, SCR, HB, ACE_INHIBITOR, ARB, STATIN, DIGOXIN, DIURETIC, NITRATES, COPD, CVA_TIA, PRIOR_HF_ADMISSION, PCI_HISTORY, ICD_PACEMAKER
+
+Full model summary:
+                           Logit Regression Results                           
+==============================================================================
+Dep. Variable:             REHOSPITAL   No. Observations:                 5238
+Model:                          Logit   Df Residuals:                     5223
+Method:                           MLE   Df Model:                           14
+Date:                Mon, 25 May 2026   Pseudo R-squ.:                 0.05029
+Time:                        12:52:51   Log-Likelihood:                -2754.3
+converged:                       True   LL-Null:                       -2900.2
+Covariance Type:            nonrobust   LLR p-value:                 6.263e-54
+======================================================================================
+                         coef    std err          z      P>|z|      [0.025      0.975]
+--------------------------------------------------------------------------------------
+const                 -0.2466      0.304     -0.812      0.417      -0.842       0.349
+SBP_PER10_DECREASE     0.0135      0.013      1.040      0.299      -0.012       0.039
+SCR                    0.2821      0.060      4.714      0.000       0.165       0.399
+HB                    -0.1093      0.016     -6.765      0.000      -0.141      -0.078
+ACE_INHIBITOR         -0.0242      0.106     -0.229      0.819      -0.231       0.183
+ARB                    0.1227      0.101      1.210      0.226      -0.076       0.321
+STATIN                -0.1248      0.070     -1.786      0.074      -0.262       0.012
+DIGOXIN                0.0245      0.147      0.166      0.868      -0.264       0.313
+DIURETIC               0.4873      0.077      6.347      0.000       0.337       0.638
+NITRATES              -0.1688      0.127     -1.329      0.184      -0.418       0.080
+COPD                   0.1783      0.107      1.661      0.097      -0.032       0.389
+CVA_TIA                0.2969      0.108      2.761      0.006       0.086       0.508
+PRIOR_HF_ADMISSION     0.2875      0.079      3.654      0.000       0.133       0.442
+PCI_HISTORY            0.0791      0.080      0.992      0.321      -0.077       0.235
+ICD_PACEMAKER          0.3570      0.192      1.862      0.063      -0.019       0.733
+======================================================================================
+
+
+Step-by-step model comparison
+----------------------------------------------------------------------
+                     model  k_predictors  log_likelihood       AIC       BIC  pseudo_R2_McFadden  dropped_this_step
+                   M0_full            14      -2754.3133 5538.6266 5637.0821              0.0503                NaN
+           M1_drop_DIGOXIN            13      -2754.3271 5536.6542 5628.5459              0.0503            DIGOXIN
+     M2_drop_ACE_INHIBITOR            12      -2754.3519 5534.7038 5620.0319              0.0503      ACE_INHIBITOR
+       M3_drop_PCI_HISTORY            11      -2754.8364 5533.6728 5612.4372              0.0501        PCI_HISTORY
+M4_drop_SBP_PER10_DECREASE            10      -2755.4516 5532.9031 5605.1038              0.0499 SBP_PER10_DECREASE
+               M5_drop_ARB             9      -2756.2059 5532.4118 5598.0487              0.0496                ARB
+          M6_drop_NITRATES             8      -2757.0219 5532.0438 5591.1171              0.0494           NITRATES
+            M7_drop_STATIN             7      -2758.6513 5533.3027 5585.8122              0.0488             STATIN
+     M8_drop_ICD_PACEMAKER             6      -2760.4759 5534.9518 5580.8977              0.0482      ICD_PACEMAKER
+
+
+Likelihood ratio tests (step i vs step i-1)
+----------------------------------------------------------------------
+ step compared            dropped  LR_stat  df  p_value
+    1 M0 vs M1            DIGOXIN   0.0275   1   0.8682
+    2 M1 vs M2      ACE_INHIBITOR   0.0496   1   0.8237
+    3 M2 vs M3        PCI_HISTORY   0.9690   1   0.3249
+    4 M3 vs M4 SBP_PER10_DECREASE   1.2303   1   0.2674
+    5 M4 vs M5                ARB   1.5086   1   0.2193
+    6 M5 vs M6           NITRATES   1.6321   1   0.2014
+    7 M6 vs M7             STATIN   3.2588   1   0.0710
+    8 M7 vs M8      ICD_PACEMAKER   3.6492   1   0.0561
+
+
+Final reduced model coefficients (with OR & 95% CI)
+----------------------------------------------------------------------
+                model               term    coef  std_err       z  p_value  odds_ratio  OR_ci_low  OR_ci_high
+M8_drop_ICD_PACEMAKER              const -0.4467   0.2370 -1.8849   0.0594      0.6397     0.4020      1.0179
+M8_drop_ICD_PACEMAKER                SCR  0.2878   0.0593  4.8514   0.0000      1.3336     1.1872      1.4980
+M8_drop_ICD_PACEMAKER                 HB -0.1147   0.0159 -7.2125   0.0000      0.8916     0.8642      0.9198
+M8_drop_ICD_PACEMAKER           DIURETIC  0.4963   0.0751  6.6062   0.0000      1.6426     1.4177      1.9032
+M8_drop_ICD_PACEMAKER               COPD  0.2120   0.1063  1.9940   0.0462      1.2361     1.0036      1.5225
+M8_drop_ICD_PACEMAKER            CVA_TIA  0.2899   0.1071  2.7072   0.0068      1.3363     1.0833      1.6484
+M8_drop_ICD_PACEMAKER PRIOR_HF_ADMISSION  0.3129   0.0774  4.0417   0.0001      1.3674     1.1749      1.5915
+
+
+5-fold stratified cross-validation (final model)
+----------------------------------------------------------------------
+ fold  n_train  n_test    AUC  accuracy  log_loss  brier
+    1     4190    1048 0.6477    0.7576    0.5290 0.1748
+    2     4190    1048 0.6291    0.7510    0.5377 0.1783
+    3     4190    1048 0.6897    0.7548    0.5218 0.1700
+    4     4191    1047 0.6387    0.7555    0.5326 0.1758
+    5     4191    1047 0.6746    0.7564    0.5197 0.1708
+
+Mean +/- SD across folds:
+  AUC       : 0.6560 +/- 0.0254
+  accuracy  : 0.7551 +/- 0.0025
+  log_loss  : 0.5282 +/- 0.0075
+  brier     : 0.1739 +/- 0.0035
