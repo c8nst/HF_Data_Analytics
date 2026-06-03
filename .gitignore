@@ -35,7 +35,10 @@ pip-wheel-metadata/
 .env.*
 
 # Generated spreadsheets in this project
-*.xlsx
+#
 *.xlsm
 *.xls
+#output files
+model_outputs/
+output_charts/
 
