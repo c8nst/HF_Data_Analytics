@@ -561,3 +561,32 @@ def get_feature_columns(raw_frame: pd.DataFrame, selected: pd.DataFrame | None =
 def select_feature_frame(frame: pd.DataFrame, feature_names: list[str]) -> pd.DataFrame:
     cols = ["historyID"] + [c for c in feature_names if c in frame.columns and c != "historyID"]
     return frame.loc[:, cols].copy()
+
+
+def load_selected_feature_names(
+    selected_features_path: Path | str,
+    frame: pd.DataFrame,
+    use_all: bool = False,
+    alpha: float = 0.05,
+) -> list[str]:
+    """Load the screened feature names saved by the separate p-value script."""
+    if use_all:
+        return [c for c in frame.columns if c != "historyID"]
+    path = Path(selected_features_path)
+    if not path.exists():
+        raise FileNotFoundError(
+            f"Missing {path}. Run experimental_pvalues.py first to generate the screened feature list, "
+            "or rerun the model with --use-all-features."
+        )
+    selected = pd.read_csv(path)
+    if "feature_name" not in selected.columns:
+        raise ValueError(f"{path} must contain a 'feature_name' column.")
+    if "p_value" in selected.columns:
+        selected = selected.loc[pd.to_numeric(selected["p_value"], errors="coerce") <= float(alpha)].copy()
+    feature_names = [c for c in selected["feature_name"].astype(str).tolist() if c in frame.columns and c != "historyID"]
+    if not feature_names:
+        raise ValueError(
+            f"No usable feature names were found in {path}. "
+            "Check that the p-value script was run against the same workbook."
+        )
+    return feature_names
