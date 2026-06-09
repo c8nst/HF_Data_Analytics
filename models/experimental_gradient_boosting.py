@@ -1,0 +1,190 @@
+"""Experimental gradient boosting machine using Main_Data + LABS + ECHO."""
+
+from __future__ import annotations
+
+import argparse
+import io
+import sys
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+from sklearn.ensemble import GradientBoostingClassifier
+from sklearn.metrics import accuracy_score, brier_score_loss, log_loss, roc_auc_score
+from sklearn.model_selection import StratifiedKFold
+
+from hf_experimental_features import (
+    ROOT,
+    build_experimental_frames,
+    load_selected_feature_names,
+    select_feature_frame,
+)
+
+sys.stdout.reconfigure(encoding="utf-8")
+
+OUT_DIR = ROOT / "model_outputs" / "experimental_gbm"
+PVAL_DIR = ROOT / "model_outputs" / "experimental_pvalues"
+OUT_DIR.mkdir(parents=True, exist_ok=True)
+PVAL_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def cross_validate_gbm(
+    X: pd.DataFrame,
+    y: pd.Series,
+    n_splits: int = 5,
+    seed: int = 42,
+) -> pd.DataFrame:
+    skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=seed)
+    rows = []
+    for fold, (tr, te) in enumerate(skf.split(X, y), start=1):
+        Xtr, Xte = X.iloc[tr], X.iloc[te]
+        ytr, yte = y.iloc[tr], y.iloc[te]
+
+        gbm = GradientBoostingClassifier(
+            n_estimators=800,
+            learning_rate=0.05,
+            max_depth=4,
+            min_samples_leaf=3,
+            subsample=0.8,
+            max_features="sqrt",
+            random_state=seed,
+        )
+        gbm.fit(Xtr, ytr)
+        prob = gbm.predict_proba(Xte)[:, 1]
+        pred = (prob >= 0.5).astype(int)
+        rows.append(
+            {
+                "fold": fold,
+                "n_train": len(tr),
+                "n_test": len(te),
+                "AUC": roc_auc_score(yte, prob),
+                "accuracy": accuracy_score(yte, pred),
+                "log_loss": log_loss(yte, prob, labels=[0, 1]),
+                "brier": brier_score_loss(yte, prob),
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def model_summary_row(name: str, model: GradientBoostingClassifier, n_features: int) -> dict:
+    return {
+        "model": name,
+        "n_estimators": int(model.n_estimators),
+        "n_features": int(n_features),
+        "learning_rate": float(model.learning_rate),
+        "max_depth": int(model.max_depth),
+        "min_samples_leaf": int(model.min_samples_leaf),
+        "subsample": float(model.subsample),
+        "max_features": model.max_features,
+        "train_deviance_final": float(model.train_score_[-1]),
+    }
+
+
+def feature_table(model: GradientBoostingClassifier, feature_names: list[str]) -> pd.DataFrame:
+    out = (
+        pd.DataFrame({"feature": feature_names, "importance": model.feature_importances_})
+        .sort_values("importance", ascending=False)
+        .reset_index(drop=True)
+    )
+    out.insert(0, "rank", np.arange(1, len(out) + 1))
+    out["cumulative_importance"] = out["importance"].cumsum()
+    return out
+
+
+def build_report(
+    use_all: bool,
+    selected: pd.DataFrame,
+    summary: pd.DataFrame,
+    importance: pd.DataFrame,
+    cv: pd.DataFrame,
+) -> str:
+    buf = io.StringIO()
+    print("Experimental GBM - Main_Data + LABS + ECHO", file=buf)
+    print("=" * 70, file=buf)
+    print(f"Feature mode: {'all imputed features' if use_all else 'screened features'}", file=buf)
+    print(f"Selected features: {len(selected)}", file=buf)
+    print("\nSelected features", file=buf)
+    print("-" * 70, file=buf)
+    if selected.empty:
+        print("No features passed screening.", file=buf)
+    else:
+        print(selected.to_string(index=False, float_format=lambda v: f"{v:.4f}"), file=buf)
+    print("\nModel summary", file=buf)
+    print("-" * 70, file=buf)
+    print(summary.to_string(index=False, float_format=lambda v: f"{v:.4f}"), file=buf)
+    print("\nFeature importance table", file=buf)
+    print("-" * 70, file=buf)
+    print(importance.to_string(index=False, float_format=lambda v: f"{v:.4f}"), file=buf)
+    print("\n5-fold stratified cross-validation", file=buf)
+    print("-" * 70, file=buf)
+    print(cv.to_string(index=False, float_format=lambda v: f"{v:.4f}"), file=buf)
+    means = cv[["AUC", "accuracy", "log_loss", "brier"]].mean()
+    sds = cv[["AUC", "accuracy", "log_loss", "brier"]].std()
+    print("\nMean +/- SD across folds:", file=buf)
+    for metric in means.index:
+        print(f"  {metric:<10s}: {means[metric]:.4f} +/- {sds[metric]:.4f}", file=buf)
+    return buf.getvalue()
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Experimental gradient boosting machine.")
+    parser.add_argument(
+        "--use-all-features",
+        action="store_true",
+        help="Fit on the full imputed feature matrix instead of the screened subset.",
+    )
+    parser.add_argument(
+        "--selected-features-file",
+        type=Path,
+        default=PVAL_DIR / "selected_features.csv",
+        help="CSV generated by experimental_pvalues.py with a feature_name column.",
+    )
+    args = parser.parse_args()
+
+    raw_frame, imputed_frame, y, meta = build_experimental_frames()
+
+    if args.use_all_features:
+        feature_names = load_selected_feature_names(args.selected_features_file, imputed_frame, use_all=True)
+        selected_for_report = pd.DataFrame(
+            {
+                "sheet": ["ALL"] * len(feature_names),
+                "base_name": feature_names,
+                "feature_name": feature_names,
+                "representation": ["all"] * len(feature_names),
+                "test_type": ["n/a"] * len(feature_names),
+                "p_value": [np.nan] * len(feature_names),
+            }
+        )
+    else:
+        selected = pd.read_csv(args.selected_features_file) if args.selected_features_file.exists() else pd.DataFrame()
+        feature_names = load_selected_feature_names(args.selected_features_file, imputed_frame, use_all=False)
+        selected_for_report = selected
+
+    X = select_feature_frame(imputed_frame, feature_names).drop(columns="historyID")
+    cv = cross_validate_gbm(X, y, n_splits=5, seed=42)
+    cv.to_csv(OUT_DIR / "cv_5fold.csv", index=False)
+
+    gbm = GradientBoostingClassifier(
+        n_estimators=800,
+        learning_rate=0.05,
+        max_depth=4,
+        min_samples_leaf=3,
+        subsample=0.8,
+        max_features="sqrt",
+        random_state=42,
+    )
+    gbm.fit(X, y)
+    summary = pd.DataFrame([model_summary_row("experimental_gbm", gbm, len(feature_names))])
+    importance = feature_table(gbm, feature_names)
+
+    summary.to_csv(OUT_DIR / "model_summary.csv", index=False)
+    importance.to_csv(OUT_DIR / "feature_importance.csv", index=False)
+    (OUT_DIR / "selected_features.txt").write_text("\n".join(feature_names) + "\n", encoding="utf-8")
+
+    report = build_report(args.use_all_features, selected_for_report, summary, importance, cv)
+    (OUT_DIR / "report.txt").write_text(report, encoding="utf-8")
+    print(report)
+
+
+if __name__ == "__main__":
+    main()

@@ -38,7 +38,8 @@ pip-wheel-metadata/
 #
 *.xlsm
 *.xls
-#output files
+
+# Generated project outputs
 model_outputs/
 output_charts/
 
